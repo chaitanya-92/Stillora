@@ -51,7 +51,7 @@ export function buildRules(
     id: CATCH_ALL_RULE_ID,
     priority: 1,
     action: {
-      type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
+      type: "redirect" as unknown as chrome.declarativeNetRequest.RuleActionType,
       redirect: { extensionPath: "/blocked.html" }
     },
     condition: {
