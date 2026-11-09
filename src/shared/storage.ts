@@ -10,6 +10,7 @@ export async function readState(): Promise<StilloraState> {
     ...stored,
     websites: stored?.websites ?? DEFAULT_STATE.websites,
     history: stored?.history ?? DEFAULT_STATE.history,
+    schedules: stored?.schedules ?? DEFAULT_STATE.schedules,
     session: stored?.session ? {
       ...stored.session,
       durationMs: stored.session.durationMs ?? stored.session.remainingMs
