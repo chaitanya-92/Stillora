@@ -35,7 +35,7 @@ export type Message =
   | { type: "GET_STATE" }
   | { type: "SAVE_WEBSITES"; websites: Website[] }
   | { type: "SET_MODE"; mode: BlockingMode }
-  | { type: "START_SESSION"; durationMinutes: number }
+  | { type: "START_SESSION"; durationMinutes?: number }
   | { type: "PAUSE_SESSION" }
   | { type: "RESUME_SESSION" }
   | { type: "END_SESSION" }
