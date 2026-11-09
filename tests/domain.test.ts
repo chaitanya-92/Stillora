@@ -1,0 +1,3 @@
+import {describe,expect,it} from "vitest";import {domainMatches,normalizeDomain} from "../src/shared/domain";
+describe("normalizeDomain",()=>{it("normalizes URL and www prefix",()=>expect(normalizeDomain("https://www.YouTube.com/")).toBe("youtube.com"));it("rejects paths",()=>expect(()=>normalizeDomain("youtube.com/feed")).toThrow());it("rejects invalid domains",()=>expect(()=>normalizeDomain("not a domain")).toThrow());});
+describe("domainMatches",()=>{it("matches exact hosts",()=>expect(domainMatches("youtube.com","youtube.com")).toBe(true));it("matches subdomains",()=>expect(domainMatches("m.youtube.com","youtube.com")).toBe(true));it("rejects suffix lookalikes",()=>expect(domainMatches("notyoutube.com","youtube.com")).toBe(false));});
