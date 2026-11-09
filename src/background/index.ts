@@ -1,6 +1,6 @@
 import { readState, writeState } from "../shared/storage";
 import type { Message, StilloraState, FocusSession } from "../shared/types";
-import { domainMatches } from "../shared/domain";
+import { domainMatches, normalizeDomain } from "../shared/domain";
 import { syncBlockingRules } from "./blocking";
 
 const END_ALARM = "stillora.session-end";
@@ -127,7 +127,12 @@ async function handleMessage(message: Message): Promise<unknown> {
       return closeSession("ended-early");
     case "SAVE_WEBSITES": {
       const current = await readState();
-      const next = { ...current, websites: message.websites };
+      const normalized = message.websites.map((site) => ({
+        ...site,
+        domain: normalizeDomain(site.domain)
+      }));
+      const unique = [...new Map(normalized.map((site) => [site.domain, site])).values()];
+      const next = { ...current, websites: unique };
       await writeState(next);
       await applyPolicy(next, true);
       return next;
