@@ -14,4 +14,5 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm test
+      - run: npm audit --omit=dev
       - run: npm run build
