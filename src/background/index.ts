@@ -74,8 +74,8 @@ async function reconcile(): Promise<void> {
 }
 
 async function startSession(durationMinutes: number): Promise<StilloraState> {
-  if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 480) {
-    throw new Error("Choose a duration between 1 and 480 minutes.");
+  if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
+    throw new Error("Choose a duration between 1 and 1,440 minutes.");
   }
   const current = await readState();
   if (current.session) await closeSession("ended-early");
