@@ -18,7 +18,7 @@ describe("buildRules", () => {
     const searchRules = rules.filter((rule) => rule.id >= 5900 && rule.id < 5999);
     expect(searchRules).toHaveLength(4);
     expect(searchRules.some((rule) => rule.condition.regexFilter?.includes("google"))).toBe(true);
-    expect(searchRules.every((rule) => rule.priority > 1)).toBe(true);
+    expect(searchRules.every((rule) => (rule.priority ?? 0) > 1)).toBe(true);
     expect(rules[rules.length - 1].action.type).toBe("redirect");
   });
 
