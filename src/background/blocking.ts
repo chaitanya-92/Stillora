@@ -2,7 +2,7 @@ import type { BlockingMode, Website } from "../shared/types";
 
 const FIRST_RULE_ID = 1000;
 const CATCH_ALL_RULE_ID = 5999;
-const MAIN_FRAME = chrome.declarativeNetRequest.ResourceType.MAIN_FRAME;
+const MAIN_FRAME = "main_frame" as unknown as chrome.declarativeNetRequest.ResourceType;
 
 export function buildRules(
   mode: BlockingMode,
@@ -23,7 +23,7 @@ export function buildRules(
         id: FIRST_RULE_ID + index,
         priority: 10,
         action: {
-          type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
+          type: "redirect" as unknown as chrome.declarativeNetRequest.RuleActionType,
           redirect: { extensionPath: "/blocked.html" }
         },
         condition: {
@@ -39,7 +39,7 @@ export function buildRules(
     rules.push({
       id: FIRST_RULE_ID + index,
       priority: 20,
-      action: { type: chrome.declarativeNetRequest.RuleActionType.ALLOW },
+      action: { type: "allow" as unknown as chrome.declarativeNetRequest.RuleActionType },
       condition: {
         urlFilter: `||${site.domain}^`,
         resourceTypes: [MAIN_FRAME]
