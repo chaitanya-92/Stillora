@@ -1,0 +1,1 @@
+export default {content:["./index.html","./popup.html","./blocked.html","./src/**/*.{ts,tsx}"],theme:{extend:{colors:{stillora:{ink:"#0B1020",panel:"#121A2B",elevated:"#1A263B",violet:"#9A8AFB",muted:"#8994AA"}},fontFamily:{sans:["Inter","ui-sans-serif","system-ui","sans-serif"]},boxShadow:{glow:"0 0 80px rgba(154,138,251,.15)"}}},plugins:[]};

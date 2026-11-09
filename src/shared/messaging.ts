@@ -1,0 +1,1 @@
+import type {Message,StilloraState} from "./types"; export async function sendMessage(message:Message):Promise<StilloraState>{const result=await chrome.runtime.sendMessage(message);if(result?.error)throw new Error(result.error);return result as StilloraState}
