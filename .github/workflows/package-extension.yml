@@ -1,0 +1,46 @@
+name: Package Chrome Extension
+
+on:
+  push:
+    branches:
+      - feature/production-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Verify extension manifest
+        run: test -f dist/manifest.json
+
+      - name: Package installable extension
+        run: cd dist && zip -r ../Stillora-Chrome-Extension.zip .
+
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stillora-Chrome-Extension
+          path: Stillora-Chrome-Extension.zip
+          if-no-files-found: error
+          retention-days: 30
