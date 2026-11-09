@@ -63,7 +63,7 @@ async function reconcile(): Promise<void> {
     }
     await chrome.alarms.create(END_ALARM, { when: state.session.endsAt });
   }
-  await applyPolicy(state);
+  await applyPolicy(state, true);
 }
 
 async function startSession(durationMinutes: number): Promise<StilloraState> {
