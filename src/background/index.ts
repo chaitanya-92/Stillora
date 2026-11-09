@@ -2,16 +2,22 @@ import { readState, writeState } from "../shared/storage";
 import type { Message, StilloraState, FocusSession } from "../shared/types";
 import { domainMatches, normalizeDomain } from "../shared/domain";
 import { syncBlockingRules } from "./blocking";
+import { isScheduleActive, isScheduleValid } from "../shared/schedules";
 
 const END_ALARM = "stillora.session-end";
+const SCHEDULE_ALARM = "stillora.schedule-check";
+
+function policyIsActive(state: StilloraState): boolean {
+  return state.session?.status === "running" || isScheduleActive(state.schedules);
+}
 
 async function refreshRules(state: StilloraState): Promise<void> {
-  const active = state.session?.status === "running";
+  const active = policyIsActive(state);
   await syncBlockingRules(active ? state.mode : "blocklist", active ? state.websites : []);
 }
 
 async function redirectAlreadyOpenTabs(state: StilloraState): Promise<void> {
-  if (state.session?.status !== "running") return;
+  if (!policyIsActive(state)) return;
   const tabs = await chrome.tabs.query({});
   const enabledDomains = state.websites.filter((site) => site.enabled).map((site) => site.domain);
   for (const tab of tabs) {
@@ -56,6 +62,7 @@ async function closeSession(outcome: "completed" | "ended-early"): Promise<Still
 
 async function reconcile(): Promise<void> {
   const state = await readState();
+  await chrome.alarms.create(SCHEDULE_ALARM, { periodInMinutes: 1 });
   if (state.session?.status === "running" && state.session.endsAt) {
     if (state.session.endsAt <= Date.now()) {
       await closeSession("completed");
@@ -137,6 +144,16 @@ async function handleMessage(message: Message): Promise<unknown> {
       await applyPolicy(next, true);
       return next;
     }
+    case "SAVE_SCHEDULES": {
+      if (!message.schedules.every(isScheduleValid)) {
+        throw new Error("Check each schedule: choose a name, at least one day, and different valid start/end times.");
+      }
+      const current = await readState();
+      const next = { ...current, schedules: message.schedules };
+      await writeState(next);
+      await applyPolicy(next, true);
+      return next;
+    }
     case "SET_MODE": {
       const current = await readState();
       const next = { ...current, mode: message.mode };
@@ -158,5 +175,8 @@ chrome.runtime.onInstalled.addListener(() => { void reconcile(); });
 chrome.runtime.onStartup.addListener(() => { void reconcile(); });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === END_ALARM) void closeSession("completed");
+  if (alarm.name === SCHEDULE_ALARM) {
+    void readState().then((state) => applyPolicy(state, true));
+  }
 });
 void reconcile();
