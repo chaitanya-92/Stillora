@@ -9,7 +9,11 @@ export async function readState(): Promise<StilloraState> {
     ...DEFAULT_STATE,
     ...stored,
     websites: stored?.websites ?? DEFAULT_STATE.websites,
-    history: stored?.history ?? DEFAULT_STATE.history
+    history: stored?.history ?? DEFAULT_STATE.history,
+    session: stored?.session ? {
+      ...stored.session,
+      durationMs: stored.session.durationMs ?? stored.session.remainingMs
+    } : null
   };
 }
 
