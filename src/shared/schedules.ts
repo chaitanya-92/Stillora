@@ -27,6 +27,7 @@ export function isScheduleActive(
 
   return schedules.some((schedule) => {
     if (!schedule.enabled || !isScheduleValid(schedule)) return false;
+    if (schedule.activeUntil && date.getTime() < schedule.activeUntil) return true;
     const start = toMinutes(schedule.startTime)!;
     const end = toMinutes(schedule.endTime)!;
 
