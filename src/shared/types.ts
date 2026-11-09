@@ -9,7 +9,7 @@ export interface FocusSession {
   remainingMs: number;
   durationMs: number;
 }
-export interface FocusSchedule { id: string; name: string; daysOfWeek: number[]; startTime: string; endTime: string; enabled: boolean; }
+export interface FocusSchedule { id: string; name: string; daysOfWeek: number[]; startTime: string; endTime: string; enabled: boolean; activeUntil?: number; }
 export interface SessionRecord {
   id: string;
   startedAt: number;
