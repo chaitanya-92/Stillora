@@ -9,6 +9,7 @@ export interface FocusSession {
   remainingMs: number;
   durationMs: number;
 }
+export interface FocusSchedule { id: string; name: string; daysOfWeek: number[]; startTime: string; endTime: string; enabled: boolean; }
 export interface SessionRecord {
   id: string;
   startedAt: number;
@@ -21,12 +22,14 @@ export interface StilloraState {
   websites: Website[];
   session: FocusSession | null;
   history: SessionRecord[];
+  schedules: FocusSchedule[];
 }
 export const DEFAULT_STATE: StilloraState = {
   mode: "blocklist",
   websites: [],
   session: null,
-  history: []
+  history: [],
+  schedules: []
 };
 export type Message =
   | { type: "GET_STATE" }
@@ -35,4 +38,5 @@ export type Message =
   | { type: "START_SESSION"; durationMinutes: number }
   | { type: "PAUSE_SESSION" }
   | { type: "RESUME_SESSION" }
-  | { type: "END_SESSION" };
+  | { type: "END_SESSION" }
+  | { type: "SAVE_SCHEDULES"; schedules: FocusSchedule[] };
