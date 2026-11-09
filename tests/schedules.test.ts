@@ -29,6 +29,17 @@ describe("focus schedules", () => {
     expect(isScheduleActive([{ ...weekdaySchedule, enabled: false }], new Date(2026, 10, 9, 10, 0))).toBe(false);
   });
 
+  it("activates immediately when a schedule is manually started", () => {
+    const now = new Date(2026, 10, 9, 8, 0);
+    const manual = { ...weekdaySchedule, activeUntil: new Date(2026, 10, 9, 12, 0).getTime() };
+    expect(isScheduleActive([manual], now)).toBe(true);
+  });
+
+  it("expires a manually started schedule at its end timestamp", () => {
+    const expired = { ...weekdaySchedule, activeUntil: new Date(2026, 10, 9, 8, 0).getTime() };
+    expect(isScheduleActive([expired], new Date(2026, 10, 9, 8, 1))).toBe(false);
+  });
+
   it("rejects equal start and end times", () => {
     expect(isScheduleValid({ ...weekdaySchedule, endTime: "09:00" })).toBe(false);
   });
