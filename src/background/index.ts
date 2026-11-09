@@ -1,6 +1,182 @@
-import {readState,writeState} from "../shared/storage"; import type {Message,StilloraState} from "../shared/types"; import {syncBlockingRules} from "./blocking";
-async function refreshRules(state?:StilloraState){const s=state??await readState();const active=s.session?.status==="running";await syncBlockingRules(active?s.mode:"blocklist",active?s.websites:[]);}
-async function reconcile(){const s=await readState();if(s.session?.status==="running"&&s.session.endsAt&&s.session.endsAt<=Date.now()){const next={...s,session:null};await writeState(next);await refreshRules(next);return;}if(s.session?.status==="running"&&s.session.endsAt)await chrome.alarms.create("stillora.session-end",{when:s.session.endsAt});await refreshRules(s);}
-chrome.runtime.onInstalled.addListener(()=>{void reconcile()}); chrome.runtime.onStartup.addListener(()=>{void reconcile()});
-chrome.alarms.onAlarm.addListener(a=>{if(a.name!=="stillora.session-end")return;void(async()=>{const s=await readState();if(s.session?.status!=="running")return;const next={...s,session:null};await writeState(next);await refreshRules(next)})()});
-chrome.runtime.onMessage.addListener((message:Message,_sender,respond)=>{void(async()=>{const s=await readState();let next=s;switch(message.type){case"GET_STATE":respond(s);return;case"SAVE_WEBSITES":next={...s,websites:message.websites};break;case"SET_MODE":next={...s,mode:message.mode};break;case"START_SESSION":{const now=Date.now(),duration=Math.max(1,Math.min(message.durationMinutes,480))*60000;next={...s,session:{id:crypto.randomUUID(),status:"running",startedAt:now,endsAt:now+duration,remainingMs:duration}};await chrome.alarms.create("stillora.session-end",{when:now+duration});break;}case"PAUSE_SESSION":{if(!s.session||s.session.status!=="running"||!s.session.endsAt){respond(s);return;}const remainingMs=Math.max(0,s.session.endsAt-Date.now());next={...s,session:{...s.session,status:"paused",endsAt:null,remainingMs}};await chrome.alarms.clear("stillora.session-end");break;}case"RESUME_SESSION":{if(!s.session||s.session.status!=="paused"){respond(s);return;}const endsAt=Date.now()+s.session.remainingMs;next={...s,session:{...s.session,status:"running",endsAt}};await chrome.alarms.create("stillora.session-end",{when:endsAt});break;}case"END_SESSION":await chrome.alarms.clear("stillora.session-end");next={...s,session:null};break;}}await writeState(next);await refreshRules(next);respond(next)})().catch(e=>respond({error:e instanceof Error?e.message:"Unexpected error"}));return true;});
+import { readState, writeState } from "../shared/storage";
+import type { Message, StilloraState, FocusSession } from "../shared/types";
+import { domainMatches, normalizeDomain } from "../shared/domain";
+import { syncBlockingRules } from "./blocking";
+import { isScheduleActive, isScheduleValid } from "../shared/schedules";
+
+const END_ALARM = "stillora.session-end";
+const SCHEDULE_ALARM = "stillora.schedule-check";
+
+function policyIsActive(state: StilloraState): boolean {
+  return state.session?.status === "running" || isScheduleActive(state.schedules);
+}
+
+async function refreshRules(state: StilloraState): Promise<void> {
+  const active = policyIsActive(state);
+  await syncBlockingRules(active ? state.mode : "blocklist", active ? state.websites : []);
+}
+
+async function redirectAlreadyOpenTabs(state: StilloraState): Promise<void> {
+  if (!policyIsActive(state)) return;
+  const tabs = await chrome.tabs.query({});
+  const enabledDomains = state.websites.filter((site) => site.enabled).map((site) => site.domain);
+  for (const tab of tabs) {
+    if (!tab.id || !tab.url) continue;
+    let url: URL;
+    try { url = new URL(tab.url); } catch { continue; }
+    if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+    const matches = enabledDomains.some((domain) => domainMatches(url.hostname, domain));
+    const blocked = state.mode === "blocklist" ? matches : !matches;
+    if (blocked) {
+      await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL("blocked.html") });
+    }
+  }
+}
+
+async function applyPolicy(state: StilloraState, redirectOpenTabs = false): Promise<void> {
+  await refreshRules(state);
+  if (redirectOpenTabs) await redirectAlreadyOpenTabs(state);
+}
+
+async function closeSession(outcome: "completed" | "ended-early"): Promise<StilloraState> {
+  const state = await readState();
+  const session = state.session;
+  if (!session) return state;
+  const now = Date.now();
+  const remaining = session.status === "running" && session.endsAt
+    ? Math.max(0, session.endsAt - now)
+    : session.remainingMs;
+  const record = {
+    id: session.id,
+    startedAt: session.startedAt,
+    endedAt: now,
+    focusedMs: Math.max(0, session.durationMs - remaining),
+    outcome
+  };
+  const next = { ...state, session: null, history: [record, ...state.history].slice(0, 500) };
+  await chrome.alarms.clear(END_ALARM);
+  await writeState(next);
+  await applyPolicy(next);
+  return next;
+}
+
+async function reconcile(): Promise<void> {
+  const state = await readState();
+  await chrome.alarms.create(SCHEDULE_ALARM, { periodInMinutes: 1 });
+  if (state.session?.status === "running" && state.session.endsAt) {
+    if (state.session.endsAt <= Date.now()) {
+      await closeSession("completed");
+      return;
+    }
+    await chrome.alarms.create(END_ALARM, { when: state.session.endsAt });
+  }
+  await applyPolicy(state, true);
+}
+
+async function startSession(durationMinutes: number): Promise<StilloraState> {
+  if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 480) {
+    throw new Error("Choose a duration between 1 and 480 minutes.");
+  }
+  const current = await readState();
+  if (current.session) await closeSession("ended-early");
+  const now = Date.now();
+  const durationMs = Math.round(durationMinutes) * 60_000;
+  const session: FocusSession = {
+    id: crypto.randomUUID(),
+    status: "running",
+    startedAt: now,
+    endsAt: now + durationMs,
+    remainingMs: durationMs,
+    durationMs
+  };
+  const next = { ...await readState(), session };
+  await writeState(next);
+  await chrome.alarms.create(END_ALARM, { when: session.endsAt! });
+  await applyPolicy(next, true);
+  return next;
+}
+
+async function pauseSession(): Promise<StilloraState> {
+  const state = await readState();
+  const session = state.session;
+  if (!session || session.status !== "running" || !session.endsAt) return state;
+  const remainingMs = Math.max(0, session.endsAt - Date.now());
+  const next = { ...state, session: { ...session, status: "paused" as const, endsAt: null, remainingMs } };
+  await chrome.alarms.clear(END_ALARM);
+  await writeState(next);
+  await applyPolicy(next);
+  return next;
+}
+
+async function resumeSession(): Promise<StilloraState> {
+  const state = await readState();
+  const session = state.session;
+  if (!session || session.status !== "paused") return state;
+  const endsAt = Date.now() + session.remainingMs;
+  const next = { ...state, session: { ...session, status: "running" as const, endsAt } };
+  await writeState(next);
+  await chrome.alarms.create(END_ALARM, { when: endsAt });
+  await applyPolicy(next, true);
+  return next;
+}
+
+async function handleMessage(message: Message): Promise<unknown> {
+  switch (message.type) {
+    case "GET_STATE":
+      return readState();
+    case "START_SESSION":
+      return startSession(message.durationMinutes);
+    case "PAUSE_SESSION":
+      return pauseSession();
+    case "RESUME_SESSION":
+      return resumeSession();
+    case "END_SESSION":
+      return closeSession("ended-early");
+    case "SAVE_WEBSITES": {
+      const current = await readState();
+      const normalized = message.websites.map((site) => ({
+        ...site,
+        domain: normalizeDomain(site.domain)
+      }));
+      const unique = [...new Map(normalized.map((site) => [site.domain, site])).values()];
+      const next = { ...current, websites: unique };
+      await writeState(next);
+      await applyPolicy(next, true);
+      return next;
+    }
+    case "SAVE_SCHEDULES": {
+      if (!message.schedules.every(isScheduleValid)) {
+        throw new Error("Check each schedule: choose a name, at least one day, and different valid start/end times.");
+      }
+      const current = await readState();
+      const next = { ...current, schedules: message.schedules };
+      await writeState(next);
+      await applyPolicy(next, true);
+      return next;
+    }
+    case "SET_MODE": {
+      const current = await readState();
+      const next = { ...current, mode: message.mode };
+      await writeState(next);
+      await applyPolicy(next, true);
+      return next;
+    }
+  }
+}
+
+chrome.runtime.onMessage.addListener((message: Message, _sender, respond) => {
+  void handleMessage(message)
+    .then(respond)
+    .catch((error: unknown) => respond({ error: error instanceof Error ? error.message : "Unexpected error." }));
+  return true;
+});
+
+chrome.runtime.onInstalled.addListener(() => { void reconcile(); });
+chrome.runtime.onStartup.addListener(() => { void reconcile(); });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === END_ALARM) void closeSession("completed");
+  if (alarm.name === SCHEDULE_ALARM) {
+    void readState().then((state) => applyPolicy(state, true));
+  }
+});
+void reconcile();
