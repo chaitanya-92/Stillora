@@ -1,5 +1,5 @@
 import { readState, writeState } from "../shared/storage";
-import type { Message, StilloraState, FocusSession } from "../shared/types";
+import type { Message, StilloraState, FocusSession, ExistingTabAction } from "../shared/types";
 import { domainMatches, normalizeDomain } from "../shared/domain";
 import { syncBlockingRules } from "./blocking";
 import { isScheduleActive, isScheduleValid } from "../shared/schedules";
@@ -14,7 +14,7 @@ async function refreshRules(state: StilloraState): Promise<void> {
   const active = policyIsActive(state);
   await syncBlockingRules(active ? state.mode : "blocklist", active ? state.websites : []);
 }
-async function redirectAlreadyOpenTabs(state: StilloraState): Promise<void> {
+async function redirectAlreadyOpenTabs(state: StilloraState, action: ExistingTabAction = "redirect"): Promise<void> {
   if (!policyIsActive(state)) return;
   const tabs = await chrome.tabs.query({});
   const enabledDomains = state.websites.filter((site) => site.enabled).map((site) => site.domain);
@@ -25,12 +25,12 @@ async function redirectAlreadyOpenTabs(state: StilloraState): Promise<void> {
     if (url.protocol !== "http:" && url.protocol !== "https:") continue;
     const matches = enabledDomains.some((domain) => domainMatches(url.hostname, domain));
     const blocked = state.mode === "blocklist" ? matches : !matches;
-    if (blocked) await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL("blocked.html") });
+    if (blocked) { if (action === "close") await chrome.tabs.remove(tab.id); else await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL("blocked.html") }); }
   }
 }
-async function applyPolicy(state: StilloraState, redirectOpenTabs = false): Promise<void> {
+async function applyPolicy(state: StilloraState, redirectOpenTabs = false, tabAction: ExistingTabAction = "redirect"): Promise<void> {
   await refreshRules(state);
-  if (redirectOpenTabs) await redirectAlreadyOpenTabs(state);
+  if (redirectOpenTabs) await redirectAlreadyOpenTabs(state, tabAction);
 }
 async function closeSession(outcome: "completed" | "ended-early"): Promise<StilloraState> {
   const state = await readState();
@@ -59,7 +59,7 @@ async function reconcile(): Promise<void> {
   }
   await applyPolicy(state, true);
 }
-async function startSession(durationMinutes?: number): Promise<StilloraState> {
+async function startSession(durationMinutes?: number, existingTabAction: ExistingTabAction = "redirect"): Promise<StilloraState> {
   if (durationMinutes !== undefined && (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) {
     throw new Error("Choose a duration between 1 and 1,440 minutes.");
   }
@@ -101,7 +101,7 @@ async function resumeSession(): Promise<StilloraState> {
 async function handleMessage(message: Message): Promise<unknown> {
   switch (message.type) {
     case "GET_STATE": return readState();
-    case "START_SESSION": return startSession(message.durationMinutes);
+    case "START_SESSION": return startSession(message.durationMinutes, message.existingTabAction ?? "redirect");
     case "PAUSE_SESSION": return pauseSession();
     case "RESUME_SESSION": return resumeSession();
     case "END_SESSION": return closeSession("ended-early");
