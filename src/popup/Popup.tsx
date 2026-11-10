@@ -85,11 +85,11 @@ export default function Popup() {
 
       <AnimatePresence>
         {pendingTabs.length > 0 && <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:8}} className="mt-4 rounded-2xl border border-[#2DD4BF]/30 bg-[#142124] p-4">
-          <div className="flex items-start justify-between gap-2"><div className="text-sm font-semibold text-[#F0FAF8]">Open tabs outside your focus list</div><button aria-label="Cancel" onClick={()=>setPendingTabs([])}><X size={15}/></button></div>
-          <p className="mt-1 text-xs leading-5 text-[#91A5A8]">{pendingTabs.length} tab(s) will be restricted when protection starts. Choose what Stillora should do.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button disabled={busy} onClick={()=>void run("START_SESSION","close")} className="btn btn-primary h-auto min-h-0 border-0 bg-[#2DD4BF] px-2 py-2 text-xs text-[#071719]">Close tabs</button>
-            <button disabled={busy} onClick={()=>void run("START_SESSION","redirect")} className="btn btn-outline h-auto min-h-0 border-[#365052] px-2 py-2 text-xs text-[#E6F4F2]">Keep & block</button>
+          <div className="flex items-start justify-between gap-2"><div className="text-sm font-semibold text-[#F0FAF8]">{state.mode === "allowlist" ? "Tabs outside your Allowlist" : "Blocked websites are already open"}</div><button aria-label="Cancel" onClick={()=>setPendingTabs([])}><X size={15}/></button></div>
+          <p className="mt-1 text-xs leading-5 text-[#91A5A8]">{pendingTabs.length} open tab(s) do not match your {state.mode === "allowlist" ? "Allowlist" : "Blocklist"}. Choose what happens before protection starts. Nothing is closed until you confirm.</p>
+          <div className="mt-3 max-h-24 space-y-1 overflow-y-auto rounded-xl border border-[#294144] bg-[#101719] p-2">{pendingTabs.slice(0,5).map((tab) => { let host = tab.url ?? "Website"; try { host = new URL(tab.url ?? "").hostname; } catch {} return <div key={tab.id} className="truncate text-[11px] text-[#A8BCB8]">{host}</div>; })}{pendingTabs.length > 5 && <div className="text-[10px] text-[#718986]">and {pendingTabs.length - 5} more tabs</div>}</div><div className="mt-3 grid grid-cols-2 gap-2">
+            <button disabled={busy} onClick={()=>void run("START_SESSION","close")} className="btn btn-primary h-auto min-h-0 border-0 bg-[#2DD4BF] px-2 py-2 text-xs text-[#071719]">Close outside tabs</button>
+            <button disabled={busy} onClick={()=>void run("START_SESSION","redirect")} className="btn btn-outline h-auto min-h-0 border-[#365052] px-2 py-2 text-xs text-[#E6F4F2]">Keep & redirect</button>
           </div>
           <button onClick={()=>setPendingTabs([])} className="mt-3 w-full text-xs text-[#91A5A8]">Cancel protection</button>
         </motion.div>}
