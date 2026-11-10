@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, MoonStar, Play, ShieldCheck, Square, Ban, X, ArrowRight } from "lucide-react";
+import { ExternalLink, MoonStar, Play, ShieldCheck, Square, Ban, X } from "lucide-react";
 import { sendMessage } from "../shared/messaging";
 import { domainMatches } from "../shared/domain";
 import { DEFAULT_STATE, type BlockingMode, type StilloraState } from "../shared/types";
