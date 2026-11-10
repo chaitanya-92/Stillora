@@ -73,7 +73,7 @@ async function startSession(durationMinutes?: number, existingTabAction: Existin
   await writeState(next);
   await chrome.alarms.clear(END_ALARM);
   if (session.endsAt) await chrome.alarms.create(END_ALARM, { when: session.endsAt });
-  await applyPolicy(next, true);
+  await applyPolicy(next, true, existingTabAction);
   return next;
 }
 async function pauseSession(): Promise<StilloraState> {
